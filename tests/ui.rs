@@ -199,6 +199,7 @@ fn color_change(c: &Ctx) {
 
 fn tools_and_strokes(c: &Ctx) {
     let win = c.new_window();
+    pump(100);
     assert_eq!(win.tool(), "text", "typing is the default");
     assert!(!win.canvas.area.can_target() && win.tool_bar.is_visible());
     assert!(!win.ink_btn.is_sensitive(), "ink only matters for drawing");
@@ -218,6 +219,49 @@ fn tools_and_strokes(c: &Ctx) {
     win.select_tool("text");
     assert_eq!(win.mode(), "text");
     assert!(!win.canvas.area.can_target() && win.tool_bar.is_visible());
+}
+
+fn toolbar_follows_window_activation(c: &Ctx) {
+    let first = c.new_window();
+    pump(100);
+    assert!(first.window.is_active() && first.tool_bar.is_visible());
+
+    let second = c.new_window();
+    pump(100);
+    assert!(second.window.is_active() && second.tool_bar.is_visible());
+    assert!(!first.tool_bar.is_visible());
+
+    second.hide_note();
+    pump(100);
+    assert!(first.window.is_active() && first.tool_bar.is_visible());
+}
+
+fn default_size_applies_to_new_notes(c: &Ctx) {
+    let first = c.new_window();
+    let first_size = first.window.default_size();
+    let store = NoteStore::new(c.app.store_dir()).unwrap();
+    store.set_new_note_size(420, 260).unwrap();
+    let second = c.new_window();
+    assert_eq!(second.window.default_size(), (420, 260));
+    assert_eq!(first.window.default_size(), first_size);
+    assert!(!second.window.is_maximized() && !second.window.is_fullscreen());
+}
+
+fn toolbar_zoom_changes_only_one_note(c: &Ctx) {
+    let first = c.new_window();
+    let second = c.new_window();
+    pump(100);
+    let size = |win: &NoteWindow| win.editor.edit_view.pango_context().font_description().unwrap().size();
+    let base = size(&second);
+    gtk::prelude::WidgetExt::activate_action(&second.window, "win.text-larger", None).unwrap();
+    pump(100);
+    assert!(size(&second) > base);
+    assert_eq!(size(&first), base);
+    second.save_now();
+    assert_eq!(c.app.load_note_from_disk(&second.id()).unwrap().text_scale, Some(1.1));
+    gtk::prelude::WidgetExt::activate_action(&second.window, "win.text-smaller", None).unwrap();
+    pump(100);
+    assert_eq!(size(&second), base);
 }
 
 fn shapes_are_drawn_by_dragging(c: &Ctx) {
@@ -1069,6 +1113,9 @@ fn main() {
         ("typing_saves_text", typing_saves_text),
         ("color_change", color_change),
         ("tools_and_strokes", tools_and_strokes),
+        ("toolbar_follows_window_activation", toolbar_follows_window_activation),
+        ("default_size_applies_to_new_notes", default_size_applies_to_new_notes),
+        ("toolbar_zoom_changes_only_one_note", toolbar_zoom_changes_only_one_note),
         ("shapes_are_drawn_by_dragging", shapes_are_drawn_by_dragging),
         ("undo_follows_the_tool", undo_follows_the_tool),
         ("tool_keys_only_while_drawing", tool_keys_only_while_drawing),

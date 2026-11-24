@@ -4,7 +4,7 @@
 #   tools/build-appimage.sh [OUT_DIR]      (default: dist/)
 #
 # Runs on Debian 13 (what CI uses). Needs: cargo, libgtk-4-dev, libadwaita-1-dev,
-# librsvg2-common, adwaita-icon-theme, file, curl, binutils.
+# librsvg2-common, adwaita-icon-theme, fcitx5-frontend-gtk4, file, curl, binutils.
 #
 # The AppImage bundles GTK 4.18 and libadwaita 1.7, so it also runs on distros
 # whose own GTK is too old (e.g. Ubuntu 24.04). The oldest glibc it supports is
@@ -62,6 +62,11 @@ DEPLOY_GTK_VERSION=4 linuxdeploy --appdir "$appdir" \
   --icon-file "$appdir/usr/share/icons/hicolor/scalable/apps/ch.giosuel.RealerXpad.svg" \
   --plugin gtk
 
+# GTK discovers this frontend dynamically. Deploy its dependencies and patch
+# its RPATH in place so it can use the host's Fcitx5 daemon over D-Bus.
+fcitx_module="$appdir/usr/lib/gtk-4.0/4.0.0/immodules/libim-fcitx5.so"
+linuxdeploy --appdir "$appdir" --deploy-deps-only "$fcitx_module"
+
 # 2) The GTK plugin's launch hook forces GDK_BACKEND=x11 (which would run us
 #    under XWayland, or not at all without it) and pins GTK_THEME (which stops
 #    libadwaita from following the system's light/dark preference). Hooks run in
@@ -69,11 +74,13 @@ DEPLOY_GTK_VERSION=4 linuxdeploy --appdir "$appdir" \
 cat > "$appdir/apprun-hooks/00-realer-xpad-save-env.sh" <<'HOOK'
 _rx_gdk_backend="${GDK_BACKEND-__unset__}"
 _rx_gtk_theme="${GTK_THEME-__unset__}"
+_rx_gtk_path="${GTK_PATH-}"
 HOOK
 cat > "$appdir/apprun-hooks/zz-realer-xpad-restore-env.sh" <<'HOOK'
 if [ "$_rx_gdk_backend" = __unset__ ]; then unset GDK_BACKEND; else export GDK_BACKEND="$_rx_gdk_backend"; fi
 if [ "$_rx_gtk_theme" = __unset__ ]; then unset GTK_THEME; else export GTK_THEME="$_rx_gtk_theme"; fi
-unset _rx_gdk_backend _rx_gtk_theme
+if [ -n "$_rx_gtk_path" ]; then export GTK_PATH="$GTK_PATH:$_rx_gtk_path"; fi
+unset _rx_gdk_backend _rx_gtk_theme _rx_gtk_path
 HOOK
 
 # 2b) Guard the minimum glibc.

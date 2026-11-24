@@ -104,6 +104,12 @@ Then launch **Realer Xpad** from your app launcher, or run `realer-xpad`. Notes 
 
 **Coming from xpad?** On first start, Realer Xpad offers to bring your xpad notes over, with their text, colours and sizes. xpad itself stays untouched. Later imports: **Import from xpad…** in the notes manager, or `realer-xpad import-xpad`.
 
+In the note or Notes Manager menu, choose **New Note Size…** to set the starting size for new notes (300 × 300 by default). Use the zoom buttons next to a note’s colour picker to change only that note’s text size.
+
+**Pin to Top** is available in the note menu on X11 and Hyprland. On a Plasma Wayland session, use the window manager’s **Keep Above Others** command for native Wayland windows. If you want the in-app toggle under Plasma Wayland, quit Realer Xpad and relaunch with `GDK_BACKEND=x11` to use XWayland.
+
+The AppImage includes the GTK 4 frontend for Fcitx5. It uses the host’s running Fcitx5 daemon and its configured input methods. If your session already uses Fcitx5 but GTK chooses another input method, launch the AppImage with `GTK_IM_MODULE=fcitx`.
+
 ## 🌊 Hyprland
 
 Add the rules from [`extras/hyprland.lua`](extras/hyprland.lua) to `~/.config/hypr/hyprland.lua` so notes float instead of tiling:

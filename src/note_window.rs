@@ -11,8 +11,8 @@ use crate::app::{App, AppInner};
 use crate::canvas::Canvas;
 use crate::drawing::{Drawing, INK_COLORS, SHAPES, WIDTHS};
 use crate::editor::{MarkdownEditor, TEXT_INSET, TEXT_TOP};
-use crate::store::{COLORS, Note, save_image};
-use crate::theme::{PALETTE, swatch};
+use crate::store::{COLORS, MIN_NOTE_SIZE, Note, save_image};
+use crate::theme::{self, PALETTE, swatch};
 
 const SAVE_DELAY: Duration = Duration::from_millis(500);
 
@@ -140,7 +140,7 @@ impl NoteWindow {
             .default_width(width)
             .default_height(height)
             .build();
-        window.set_size_request(230, 140); // room for the tool row
+        window.set_size_request(MIN_NOTE_SIZE.0, MIN_NOTE_SIZE.1); // room for the tool row
         window.add_css_class("note");
         // Unique initial title so the compositor (Hyprland) can identify us.
         window.set_title(Some(&initial_title(&id)));
@@ -182,10 +182,21 @@ impl NoteWindow {
             true,
         );
         start.append(&color_btn);
+        for (icon, label, action) in [
+            ("zoom-out-symbolic", "Decrease text size", "win.text-smaller"),
+            ("zoom-in-symbolic", "Increase text size", "win.text-larger"),
+        ] {
+            let zoom = button(icon, label, true);
+            zoom.set_action_name(Some(action));
+            start.append(&zoom);
+        }
 
         let end = gtk::Box::new(gtk::Orientation::Horizontal, 2);
-        let pin_btn = toggle("rx-pin-symbolic", "Keep on top, on every workspace", true);
-        pin_btn.set_visible(app.hypr().is_some());
+        let hyprland = app.hypr().is_some();
+        let can_pin = hyprland || crate::x11::supports(&gtk::prelude::WidgetExt::display(&window));
+        let pin_hint = if hyprland { "Keep on top, on every workspace" } else { "Keep on top" };
+        let pin_btn = toggle("rx-pin-symbolic", pin_hint, true);
+        pin_btn.set_visible(can_pin);
         pin_btn.set_active(pinned);
         end.append(&pin_btn);
         let menu_btn = note_btn(
@@ -193,7 +204,7 @@ impl NoteWindow {
                 .icon_name("view-more-symbolic")
                 .tooltip_text("Menu")
                 .valign(gtk::Align::Center)
-                .menu_model(&menu())
+                .menu_model(&menu(can_pin))
                 .build(),
             true,
         );
@@ -224,6 +235,7 @@ impl NoteWindow {
         // The tool row, always visible: text, the drawing tools, ink, undo/redo.
         let bar = gtk::Box::builder().spacing(1).halign(gtk::Align::Center).build();
         bar.add_css_class("tool-bar");
+        bar.set_visible(false);
         let mut tool_buttons = Vec::new();
         let mut group: Option<gtk::ToggleButton> = None;
         let shape_list =
@@ -365,6 +377,9 @@ impl NoteWindow {
         };
         win.editor.set_text(&text);
         win.apply_color();
+        if let Some(index) = win.text_scale_index() {
+            win.window.add_css_class(&theme::note_text_scale_class(index));
+        }
         win.shape_buttons[2].1.set_active(true); // rectangle
         win.set_tool(if mode == "draw" { "pen" } else { "text" }, true);
         if !text.trim().is_empty() {
@@ -518,12 +533,17 @@ impl NoteWindow {
         self.window.add_controller(keys);
 
         self.connect_pictures();
+        if self.pin_btn.is_visible() {
+            self.window.add_action(&gio::PropertyAction::new("pin-to-top", &self.pin_btn, "active"));
+        }
 
         for (name, f) in [
             ("delete", NoteWindow::confirm_delete as fn(&NoteWindow)),
             ("close", NoteWindow::hide_note),
             ("toggle-draw", NoteWindow::toggle_draw),
             ("toggle-read", NoteWindow::toggle_read),
+            ("text-smaller", |w| w.step_text_size(false)),
+            ("text-larger", |w| w.step_text_size(true)),
             ("copy-image", NoteWindow::copy_picture),
             ("reset-image", |w| w.canvas.reset_selected()),
             ("delete-image", |w| w.canvas.delete_selected()),
@@ -972,7 +992,9 @@ impl NoteWindow {
     }
 
     fn on_active_changed(&self) {
-        if self.window.is_active() {
+        let active = self.window.is_active();
+        self.tool_bar.set_visible(active);
+        if active {
             return;
         }
         let (mode, has_text) = {
@@ -1045,6 +1067,27 @@ impl NoteWindow {
         }
     }
 
+    fn text_scale_index(&self) -> Option<usize> {
+        let scale = self.note.borrow().text_scale?;
+        theme::TEXT_SCALES.iter().position(|&step| step == scale)
+    }
+
+    fn step_text_size(&self, larger: bool) {
+        let current = self.text_scale_index();
+        let scale = current.map_or_else(|| self.app().map_or(1.0, |app| app.text_scale()), |i| theme::TEXT_SCALES[i]);
+        let next = theme::step_text_scale(scale, larger);
+        if next == scale {
+            return;
+        }
+        if let Some(index) = current {
+            self.window.remove_css_class(&theme::note_text_scale_class(index));
+        }
+        let index = theme::TEXT_SCALES.iter().position(|&step| step == next).expect("a text size step");
+        self.window.add_css_class(&theme::note_text_scale_class(index));
+        self.note.borrow_mut().text_scale = Some(next);
+        self.schedule_save();
+    }
+
     fn on_pin_toggled(&self) {
         self.note.borrow_mut().pinned = self.pin_btn.is_active();
         if let Some(app) = self.app() {
@@ -1107,14 +1150,18 @@ pub fn initial_title(id: &str) -> String {
     format!("realer-xpad-{id}")
 }
 
-fn menu() -> gio::Menu {
+fn menu(can_pin: bool) -> gio::Menu {
     let menu = gio::Menu::new();
     let section = gio::Menu::new();
     section.append(Some("New Note"), Some("app.new-note"));
     section.append(Some("All Notes"), Some("app.manager"));
+    section.append(Some("New Note Size…"), Some("app.new-note-size"));
     section.append(Some("Hide All Notes"), Some("app.hide-all"));
     menu.append_section(None, &section);
     let section = gio::Menu::new();
+    if can_pin {
+        section.append(Some("Pin to Top"), Some("win.pin-to-top"));
+    }
     section.append(Some("Delete Note"), Some("win.delete"));
     menu.append_section(None, &section);
     menu

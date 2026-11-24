@@ -162,7 +162,7 @@ jobs:
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             build-essential pkg-config libgtk-4-dev libadwaita-1-dev librsvg2-common \
-            adwaita-icon-theme file curl ca-certificates git sway dbus fonts-dejavu-core
+            adwaita-icon-theme fcitx5-frontend-gtk4 file curl ca-certificates git sway dbus fonts-dejavu-core
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:

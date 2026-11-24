@@ -12,7 +12,7 @@ use gtk::{gio, glib};
 use crate::hypr::Hyprland;
 use crate::manager::Manager;
 use crate::note_window::NoteWindow;
-use crate::store::{Note, NoteStore, default_data_dir};
+use crate::store::{DEFAULT_SIZE, MAX_NOTE_SIZE, MIN_NOTE_SIZE, Note, NoteStore, default_data_dir};
 use crate::{APP_ID, APP_NAME, VERSION, cli, theme, tray, xpad};
 
 const GEOMETRY_POLL_S: u32 = 3;
@@ -106,13 +106,14 @@ impl App {
         *self.0.hypr.borrow_mut() = Hyprland::detect();
         self.load_notes(store);
 
-        let actions: [ActionEntry; 8] = [
+        let actions: [ActionEntry; 9] = [
             ("new-note", App::new_note, Some("<Ctrl>n")),
             ("show-all", App::show_all, None),
             ("hide-all", App::hide_all, None),
             ("manager", App::open_manager, None),
             ("import-xpad", App::import_xpad_and_report, None),
             ("open-folder", App::open_folder, None),
+            ("new-note-size", App::edit_new_note_size, None),
             ("about", App::about, None),
             ("quit", App::quit_app, Some("<Ctrl>q")),
         ];
@@ -341,7 +342,8 @@ impl App {
     }
 
     pub fn new_note(&self) {
-        let mut note = Note::default();
+        let (width, height) = self.new_note_size();
+        let mut note = Note { width, height, ..Note::default() };
         if !self.0.windows.borrow().is_empty() {
             // inherit the colour of the most recently used note
             let notes = self.notes();
@@ -587,6 +589,42 @@ impl App {
         manager.window.present();
     }
 
+    pub fn new_note_size(&self) -> (i32, i32) {
+        self.0.store.borrow().as_ref().map_or(DEFAULT_SIZE, NoteStore::new_note_size)
+    }
+
+    fn edit_new_note_size(&self) {
+        let (width, height) = self.new_note_size();
+        let group = adw::PreferencesGroup::builder().description("Size in pixels for newly created notes.").build();
+        let width_row = adw::SpinRow::with_range(MIN_NOTE_SIZE.0.into(), MAX_NOTE_SIZE.into(), 1.0);
+        width_row.set_title("Width");
+        width_row.set_value(width.into());
+        let height_row = adw::SpinRow::with_range(MIN_NOTE_SIZE.1.into(), MAX_NOTE_SIZE.into(), 1.0);
+        height_row.set_title("Height");
+        height_row.set_value(height.into());
+        group.add(&width_row);
+        group.add(&height_row);
+
+        let dialog = adw::AlertDialog::builder().heading("New Note Size").extra_child(&group).build();
+        dialog.add_response("cancel", "Cancel");
+        dialog.add_response("save", "Save");
+        dialog.set_default_response(Some("save"));
+        dialog.set_response_appearance("save", adw::ResponseAppearance::Suggested);
+        let weak = Rc::downgrade(&self.0);
+        dialog.connect_response(Some("save"), move |_, _| {
+            let Some(app) = weak.upgrade().map(App) else { return };
+            let (width, height) = (width_row.value().round() as i32, height_row.value().round() as i32);
+            let result = app.0.store.borrow().as_ref().map(|store| store.set_new_note_size(width, height));
+            if let Some(Err(err)) = result {
+                let error =
+                    adw::AlertDialog::builder().heading("Could Not Save New Note Size").body(err.to_string()).build();
+                error.add_response("close", "Close");
+                error.present(app.dialog_parent().as_ref());
+            }
+        });
+        dialog.present(self.dialog_parent().as_ref());
+    }
+
     fn open_folder(&self) {
         let file = gio::File::for_path(self.store_dir());
         let parent = self.manager().map(|m| m.window.clone().upcast::<gtk::Window>());
@@ -610,8 +648,13 @@ impl App {
     // -- Hyprland -------------------------------------------------------
 
     fn on_note_mapped(&self, id: &str) {
-        let Some(hypr) = self.hypr() else { return };
         let Some(win) = self.0.windows.borrow().get(id).cloned() else { return };
+        let Some(hypr) = self.hypr() else {
+            if win.note.borrow().pinned {
+                self.apply_pin(&win);
+            }
+            return;
+        };
         let title = win.initial_title();
         let mut attempts = 0;
         glib::timeout_add_local(Duration::from_millis(50), move || {
@@ -633,10 +676,13 @@ impl App {
     }
 
     pub fn apply_pin(&self, win: &NoteWindow) {
-        if let Some(hypr) = self.hypr()
-            && let Some(client) = hypr.find(&win.initial_title(), None)
-        {
-            hypr.set_pinned(&client, win.note.borrow().pinned);
+        let pinned = win.note.borrow().pinned;
+        if let Some(hypr) = self.hypr() {
+            if let Some(client) = hypr.find(&win.initial_title(), None) {
+                hypr.set_pinned(&client, pinned);
+            }
+        } else if let Some(surface) = win.window.surface() {
+            crate::x11::set_above(&surface, pinned);
         }
     }
 

@@ -29,6 +29,9 @@ const SETTINGS: &str = "settings.conf";
 pub const COLORS: [&str; 7] = ["yellow", "peach", "pink", "lavender", "sky", "mint", "graphite"];
 pub const DEFAULT_COLOR: &str = "yellow";
 pub const DEFAULT_SIZE: (i32, i32) = (300, 300);
+pub const MIN_NOTE_SIZE: (i32, i32) = (230, 140);
+pub const MAX_NOTE_SIZE: i32 = 4096;
+const NOTE_SIZE_SETTING: &str = "new-note-size";
 
 pub fn now() -> f64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0.0, |d| d.as_secs_f64())
@@ -69,6 +72,8 @@ pub struct Note {
     pub x: Option<i32>,
     pub y: Option<i32>,
     pub pinned: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_scale: Option<f64>,
     pub visible: bool,
     /// `"text"` or `"draw"`.
     pub mode: String,
@@ -102,6 +107,7 @@ impl Default for Note {
             x: None,
             y: None,
             pinned: false,
+            text_scale: None,
             visible: true,
             mode: "text".into(),
             strokes: Vec::new(),
@@ -170,6 +176,23 @@ impl NoteStore {
             old.lines().filter(|l| l.split_once('=').is_none_or(|(k, _)| k.trim() != key)).map(String::from).collect();
         lines.push(format!("{key}={value}"));
         atomic_write(&path, lines.join("\n") + "\n")
+    }
+
+    pub fn new_note_size(&self) -> (i32, i32) {
+        self.setting(NOTE_SIZE_SETTING)
+            .and_then(|value| {
+                let (width, height) = value.split_once('x')?;
+                Some((width.parse().ok()?, height.parse().ok()?))
+            })
+            .filter(|&(width, height)| {
+                (MIN_NOTE_SIZE.0..=MAX_NOTE_SIZE).contains(&width)
+                    && (MIN_NOTE_SIZE.1..=MAX_NOTE_SIZE).contains(&height)
+            })
+            .unwrap_or(DEFAULT_SIZE)
+    }
+
+    pub fn set_new_note_size(&self, width: i32, height: i32) -> io::Result<()> {
+        self.set_setting(NOTE_SIZE_SETTING, &format!("{width}x{height}"))
     }
 
     pub fn load_all(&self) -> Vec<Note> {

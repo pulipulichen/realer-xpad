@@ -12,6 +12,7 @@ pub mod note_window;
 pub mod store;
 pub mod theme;
 pub mod tray;
+mod x11;
 pub mod xpad;
 
 pub const APP_ID: &str = "ch.giosuel.RealerXpad";

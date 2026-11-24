@@ -10,7 +10,7 @@ pub const RESOURCE_BASE: &str = "/ch/giosuel/RealerXpad";
 
 /// Note text size at 100 % (also in note.css).
 pub const TEXT_PT: f64 = 11.0;
-/// Text sizes that Ctrl+plus / Ctrl+minus step through.
+/// Text sizes that the toolbar and keyboard shortcuts step through.
 pub const TEXT_SCALES: [f64; 11] = [0.7, 0.8, 0.9, 1.0, 1.1, 1.25, 1.4, 1.6, 1.8, 2.0, 2.5];
 
 /// The next text scale up (`larger`) or down from `scale`, staying in range.
@@ -27,18 +27,22 @@ thread_local! {
     static TEXT_SIZE: gtk::CssProvider = {
         let provider = gtk::CssProvider::new();
         if let Some(display) = gdk::Display::default() {
-            let priority = gtk::STYLE_PROVIDER_PRIORITY_APPLICATION + 2; // above note.css
+            let priority = gtk::STYLE_PROVIDER_PRIORITY_APPLICATION;
             gtk::style_context_add_provider_for_display(&display, &provider, priority);
         }
         provider
     };
 }
 
-/// Size the text of every note at `scale` × [`TEXT_PT`].
+/// Set the fallback text size for notes without their own scale.
 pub fn set_text_scale(scale: f64) {
     let pt = TEXT_PT * scale;
-    let css = format!("window.note textview.note-text, window.note .placeholder {{ font-size: {pt:.2}pt; }}");
+    let css = format!("window.note {{ --note-text-size: {pt:.2}pt; }}");
     TEXT_SIZE.with(|p| p.load_from_string(&css));
+}
+
+pub fn note_text_scale_class(index: usize) -> String {
+    format!("note-text-scale-{index}")
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -80,6 +84,10 @@ pub fn rgba(hex: &str, alpha: f64) -> String {
 
 pub fn palette_css() -> String {
     let mut rules = Vec::new();
+    for (index, scale) in TEXT_SCALES.iter().enumerate() {
+        let pt = TEXT_PT * scale;
+        rules.push(format!("window.note.{} {{ --note-text-size: {pt:.2}pt; }}", note_text_scale_class(index)));
+    }
     for (name, light, dark) in PALETTE {
         for (s, sel) in [(light, format!("window.note.{name}")), (dark, format!("window.note.dark.{name}"))] {
             rules.push(format!(

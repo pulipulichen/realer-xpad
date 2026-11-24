@@ -44,18 +44,18 @@ window.note textview text selection {
 }
 /* Text insets are set in code (editor::TEXT_INSET) so the placeholder can match. */
 window.note textview.note-text {
-  font-size: 11pt;
+  font-size: var(--note-text-size, 11pt);
 }
 
 window.note .placeholder {
   color: var(--note-dim);
-  font-size: 11pt;
+  font-size: var(--note-text-size, 11pt);
 }
 
 window.note scrollbar { background: none; }
 window.note scrollbar slider { background-color: var(--note-tint-strong); }
 
-/* Tool row: text and drawing tools, ink, undo/redo. Always visible. */
+/* Tool row: text and drawing tools, ink, undo/redo. */
 window.note .tool-bar {
   margin: 2px 6px 6px 6px;
   padding: 2px;

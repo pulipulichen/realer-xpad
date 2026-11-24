@@ -64,6 +64,7 @@ impl Manager {
         header.pack_start(&new_btn);
         let menu = gio::Menu::new();
         menu.append(Some("Import from xpad…"), Some("app.import-xpad"));
+        menu.append(Some("New Note Size…"), Some("app.new-note-size"));
         menu.append(Some("Open Notes Folder"), Some("app.open-folder"));
         menu.append(Some("About Realer Xpad"), Some("app.about"));
         menu.append(Some("Quit"), Some("app.quit"));
