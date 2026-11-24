@@ -156,6 +156,8 @@ jobs:
     needs: [version, lint, test]
     runs-on: ubuntu-latest
     container: debian:trixie
+    permissions:
+      contents: write
     steps:
       - name: Install build dependencies
         run: |
@@ -164,6 +166,8 @@ jobs:
             build-essential pkg-config libgtk-4-dev libadwaita-1-dev librsvg2-common \
             adwaita-icon-theme fcitx5-frontend-gtk4 file curl ca-certificates git sway wtype dbus fonts-dejavu-core
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@v8
         with:
           name: version
@@ -183,7 +187,23 @@ jobs:
             swaymsg -s "$sock" -t get_tree | grep -q "\"app_id\": *\"ch.giosuel.RealerXpad\"" ||
               { echo "no native Wayland window with app_id ch.giosuel.RealerXpad" >&2; exit 1; }
             "$0" quit' "$appimage"
+      - name: Publish AppImage preview
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          appimage="dist/Realer_Xpad-$VERSION-x86_64.AppImage"
+          test -s "$appimage"
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gh
+          tag="preview-$VERSION-$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT"
+          gh release create "$tag" "$appimage" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --prerelease --latest=false --title "Realer Xpad $VERSION (AppImage preview)" \
+            --notes "AppImage built from \`$GITHUB_SHA\`. [Build and smoke test]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)."
       - uses: actions/upload-artifact@v7
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
           name: appimage
           path: dist/
