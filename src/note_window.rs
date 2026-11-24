@@ -386,7 +386,7 @@ impl NoteWindow {
             win.editor.show_read();
         }
         win.update_undo_buttons();
-        win.connect_signals();
+        win.connect_signals(can_pin);
         win
     }
 
@@ -416,7 +416,7 @@ impl NoteWindow {
         }
     }
 
-    fn connect_signals(&self) {
+    fn connect_signals(&self, can_pin: bool) {
         let on = |f: fn(&NoteWindow)| self.bind(f);
 
         let cb = on(NoteWindow::on_text_changed);
@@ -533,7 +533,7 @@ impl NoteWindow {
         self.window.add_controller(keys);
 
         self.connect_pictures();
-        if self.pin_btn.is_visible() {
+        if can_pin {
             self.window.add_action(&gio::PropertyAction::new("pin-to-top", &self.pin_btn, "active"));
         }
 

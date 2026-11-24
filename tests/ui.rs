@@ -236,6 +236,23 @@ fn toolbar_follows_window_activation(c: &Ctx) {
     assert!(first.window.is_active() && first.tool_bar.is_visible());
 }
 
+fn x11_pin_action_updates_only_one_note(c: &Ctx) {
+    let first = c.new_window();
+    if !first.pin_btn.is_visible() {
+        return;
+    }
+    let second = c.new_window();
+    pump(100);
+    gtk::prelude::WidgetExt::activate_action(&second.window, "win.pin-to-top", None).unwrap();
+    pump(100);
+    assert!(second.pin_btn.is_active() && second.note.borrow().pinned);
+    assert!(!first.pin_btn.is_active() && !first.note.borrow().pinned);
+
+    gtk::prelude::WidgetExt::activate_action(&second.window, "win.pin-to-top", None).unwrap();
+    pump(100);
+    assert!(!second.pin_btn.is_active() && !second.note.borrow().pinned);
+}
+
 fn default_size_applies_to_new_notes(c: &Ctx) {
     let first = c.new_window();
     let first_size = first.window.default_size();
@@ -1114,6 +1131,7 @@ fn main() {
         ("color_change", color_change),
         ("tools_and_strokes", tools_and_strokes),
         ("toolbar_follows_window_activation", toolbar_follows_window_activation),
+        ("x11_pin_action_updates_only_one_note", x11_pin_action_updates_only_one_note),
         ("default_size_applies_to_new_notes", default_size_applies_to_new_notes),
         ("toolbar_zoom_changes_only_one_note", toolbar_zoom_changes_only_one_note),
         ("shapes_are_drawn_by_dragging", shapes_are_drawn_by_dragging),
