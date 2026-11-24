@@ -195,7 +195,9 @@ jobs:
     # Flathub's own builder image, matching the manifest's runtime.
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
-      options: --privileged
+      # Seed a writable volume with the image's SDK so OSTree can replace
+      # deployments without renaming directories from the image's lower layer.
+      options: --privileged --mount type=volume,destination=/var/lib/flatpak
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
