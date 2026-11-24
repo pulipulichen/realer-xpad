@@ -27,6 +27,15 @@ fn pump(ms: u64) {
     }
 }
 
+/// Wayland focus arrives asynchronously from the compositor.
+fn wait_for_focus(win: &NoteWindow) {
+    let until = Instant::now() + Duration::from_secs(3);
+    while !win.window.is_active() && Instant::now() < until {
+        pump(10);
+    }
+    assert!(win.window.is_active(), "note did not receive keyboard focus");
+}
+
 fn tags_at(buffer: &gtk::TextBuffer, offset: i32) -> Vec<String> {
     buffer.iter_at_offset(offset).tags().iter().filter_map(|t| t.name()).map(String::from).collect()
 }
@@ -199,7 +208,7 @@ fn color_change(c: &Ctx) {
 
 fn tools_and_strokes(c: &Ctx) {
     let win = c.new_window();
-    pump(100);
+    wait_for_focus(&win);
     assert_eq!(win.tool(), "text", "typing is the default");
     assert!(!win.canvas.area.can_target() && win.tool_bar.is_visible());
     assert!(!win.ink_btn.is_sensitive(), "ink only matters for drawing");
@@ -223,17 +232,18 @@ fn tools_and_strokes(c: &Ctx) {
 
 fn toolbar_follows_window_activation(c: &Ctx) {
     let first = c.new_window();
-    pump(100);
+    wait_for_focus(&first);
     assert!(first.window.is_active() && first.tool_bar.is_visible());
 
     let second = c.new_window();
-    pump(100);
+    wait_for_focus(&second);
     assert!(second.window.is_active() && second.tool_bar.is_visible());
-    assert!(!first.tool_bar.is_visible());
+    assert!(!first.window.is_active() && !first.tool_bar.is_visible());
 
     second.hide_note();
-    pump(100);
+    wait_for_focus(&first);
     assert!(first.window.is_active() && first.tool_bar.is_visible());
+    assert!(!second.window.is_active() && !second.tool_bar.is_visible());
 }
 
 fn x11_pin_action_updates_only_one_note(c: &Ctx) {

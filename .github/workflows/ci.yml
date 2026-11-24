@@ -93,10 +93,10 @@ jobs:
             apt-get update
             DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
               build-essential pkg-config libgtk-4-dev libadwaita-1-dev librsvg2-common \
-              sway dbus fonts-dejavu-core curl ca-certificates git
+              sway wtype dbus fonts-dejavu-core curl ca-certificates git
           else
             dnf install -y gcc pkgconf-pkg-config gtk4-devel libadwaita-devel \
-              sway dbus-daemon dejavu-sans-fonts libcap curl git
+              sway wtype dbus-daemon dejavu-sans-fonts libcap curl git
             # Fedora's sway carries file capabilities that containers don't grant.
             setcap -r /usr/bin/sway
           fi
@@ -162,7 +162,7 @@ jobs:
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             build-essential pkg-config libgtk-4-dev libadwaita-1-dev librsvg2-common \
-            adwaita-icon-theme fcitx5-frontend-gtk4 file curl ca-certificates git sway dbus fonts-dejavu-core
+            adwaita-icon-theme fcitx5-frontend-gtk4 file curl ca-certificates git sway wtype dbus fonts-dejavu-core
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:

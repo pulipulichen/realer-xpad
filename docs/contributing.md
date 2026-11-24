@@ -35,7 +35,8 @@ cargo fmt
 tests also check that nothing depends on X11. It also gives them a private
 D-Bus session (if `dbus-run-session` is installed) and hides any running
 Hyprland, so they never touch your desktop or your notes. It needs `sway`
-installed. GTK
+and `wtype` installed. A virtual keyboard supplies real Wayland keyboard
+focus events even without physical input devices. GTK
 must stay on a single thread, so `tests/ui.rs` uses its own small test harness
 instead of libtest. CI runs everything on Debian and Fedora.
 
