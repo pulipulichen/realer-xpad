@@ -6,6 +6,7 @@
 - On a Kubuntu 24.04 VM, KWin 5.27's Maximizing placement policy reproduced [#9](https://github.com/pulipulichen/realer-xpad/issues/9) with the previous AppImage: the initial Wayland window was 1280 × 900 on a 1280 × 900 output. Only for new notes outside Hyprland, request an ordinary initial window and try restoring it once if the compositor maximizes it or makes it fullscreen. Window rules can still enforce their own state or dimensions.
 - Check the mapped note's content allocation and window state for the 300 × 300 default and a custom 420 × 260 size.
 - [CI run 46106807006](https://github.com/pulipulichen/realer-xpad/actions/runs/46106807006) at `8cfb733`: Debian passed. Fedora's headless Wayland UI test allocated 800 × 1000 to the second note instead of 420 × 260, consistent with sway tiling half the 1600 × 1000 test output. The integration test now registers the same application ID as the AppImage so sway's floating rule matches.
+- [Preview 0.0.1-dev.93](https://github.com/pulipulichen/realer-xpad/releases/tag/preview-0.0.1-dev.93-46107079908.1) at `ea9c55d` passed CI, but Kubuntu 24.04 exposed two remaining problems with the Maximizing placement policy. KWin maximized Wayland notes after the first frame, and X11/XWayland switched to an 853 × 600 restore geometry. Keep the requested size in KWin's initial size hints during placement and then enable ordinary resizing.
 
 ## 2026-11-25
 

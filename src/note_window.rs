@@ -2,7 +2,7 @@
 
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
@@ -15,6 +15,7 @@ use crate::store::{COLORS, MIN_NOTE_SIZE, Note, save_image};
 use crate::theme::{self, PALETTE, swatch};
 
 const SAVE_DELAY: Duration = Duration::from_millis(500);
+const PLASMA_PLACEMENT_TIME: Duration = Duration::from_millis(250);
 
 /// The always-visible tool row: (tool, icon, tooltip). `"shape"` stands for
 /// whichever shape is chosen.
@@ -1130,37 +1131,45 @@ impl NoteWindow {
         self.window.unmaximize();
         self.window.unfullscreen();
 
-        // The compositor can still maximize an initially normal window as
-        // part of placement (KWin's Maximizing policy does this). Read back
-        // the first frame's state and request normal placement once.
-        self.window.add_tick_callback(move |window, _| {
-            let window = window.downgrade();
-            glib::idle_add_local_once(move || {
-                let Some(window) = window.upgrade().filter(|window| window.is_mapped()) else { return };
-                let maximized = window.is_maximized();
-                let fullscreen = window.is_fullscreen();
-                if !maximized && !fullscreen {
-                    return;
-                }
+        if !std::env::var("XDG_CURRENT_DESKTOP")
+            .is_ok_and(|desktops| desktops.split(':').any(|desktop| desktop.eq_ignore_ascii_case("KDE")))
+        {
+            return;
+        }
 
-                window.set_default_size(width, height);
+        // KWin's Maximizing placement uses the initial size hints. Keep them
+        // fixed while it places the window, including after the first commit
+        // on Wayland. Restore ordinary resizing once placement settles.
+        self.window.set_resizable(false);
+        let window = self.window.downgrade();
+        let started = Instant::now();
+        let mut requested_restore = false;
+        glib::timeout_add_local(Duration::from_millis(25), move || {
+            let Some(window) = window.upgrade() else { return glib::ControlFlow::Break };
+            if !window.is_mapped() {
+                window.set_resizable(true);
+                return glib::ControlFlow::Break;
+            }
+            let maximized = window.is_maximized();
+            let fullscreen = window.is_fullscreen();
+            if (maximized || fullscreen) && !requested_restore {
+                requested_restore = true;
                 if fullscreen {
                     window.unfullscreen();
                 }
                 if maximized {
                     window.unmaximize();
                 }
-
-                let window = window.downgrade();
-                glib::timeout_add_local_once(Duration::from_millis(500), move || {
-                    if let Some(window) = window.upgrade()
-                        && window.is_mapped()
-                        && (window.is_maximized() || window.is_fullscreen())
-                    {
-                        eprintln!("realer-xpad: window manager kept the new note maximized or fullscreen");
-                    }
-                });
-            });
+            }
+            if started.elapsed() < PLASMA_PLACEMENT_TIME {
+                return glib::ControlFlow::Continue;
+            }
+            if maximized || fullscreen {
+                eprintln!("realer-xpad: window manager kept the new note maximized or fullscreen");
+            } else {
+                window.set_default_size(width, height);
+            }
+            window.set_resizable(true);
             glib::ControlFlow::Break
         });
     }
