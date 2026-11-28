@@ -15,7 +15,7 @@ use realer_xpad::app::App;
 use realer_xpad::drawing::Stroke;
 use realer_xpad::editor::MarkdownEditor;
 use realer_xpad::note_window::NoteWindow;
-use realer_xpad::store::{Note, NoteStore};
+use realer_xpad::store::{DEFAULT_SIZE, Note, NoteStore};
 
 /// Run the main loop for a little while.
 fn pump(ms: u64) {
@@ -264,14 +264,26 @@ fn x11_pin_action_updates_only_one_note(c: &Ctx) {
 }
 
 fn default_size_applies_to_new_notes(c: &Ctx) {
+    let check_size = |win: &NoteWindow, (width, height)| {
+        wait_for_focus(win);
+        // GTK's default size excludes decorations and shadows. Check the
+        // allocation of the actual note content after the compositor maps it.
+        let content = win.window.content().unwrap();
+        let until = Instant::now() + Duration::from_secs(3);
+        while (content.width(), content.height()) != (width, height) && Instant::now() < until {
+            pump(10);
+        }
+        assert!(win.window.is_mapped());
+        assert!(!win.window.is_maximized() && !win.window.is_fullscreen());
+        assert_eq!((content.width(), content.height()), (width, height));
+    };
     let first = c.new_window();
-    let first_size = first.window.default_size();
+    check_size(&first, DEFAULT_SIZE);
     let store = NoteStore::new(c.app.store_dir()).unwrap();
     store.set_new_note_size(420, 260).unwrap();
     let second = c.new_window();
-    assert_eq!(second.window.default_size(), (420, 260));
-    assert_eq!(first.window.default_size(), first_size);
-    assert!(!second.window.is_maximized() && !second.window.is_fullscreen());
+    check_size(&second, (420, 260));
+    assert_eq!(first.window.default_size(), DEFAULT_SIZE);
 }
 
 fn toolbar_zoom_changes_only_one_note(c: &Ctx) {
@@ -659,6 +671,8 @@ fn bundled_icons_are_available(_: &Ctx) {
         "rx-pen-symbolic",
         "rx-highlighter-symbolic",
         "rx-eraser-symbolic",
+        "rx-font-size-less-symbolic",
+        "rx-font-size-more-symbolic",
         "rx-line-symbolic",
         "rx-arrow-symbolic",
         "rx-rect-symbolic",

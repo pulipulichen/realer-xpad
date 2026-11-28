@@ -356,6 +356,9 @@ impl App {
         self.0.notes.borrow_mut().insert(id.clone(), note.clone());
         self.save_note(&note);
         if let Some(win) = self.window_for(&id) {
+            if self.hypr().is_none() {
+                win.request_normal_startup_size(width, height);
+            }
             win.show_note();
             win.editor.show_edit(None);
         }

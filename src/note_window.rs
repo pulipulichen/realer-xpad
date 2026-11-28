@@ -183,8 +183,8 @@ impl NoteWindow {
         );
         start.append(&color_btn);
         for (icon, label, action) in [
-            ("zoom-out-symbolic", "Decrease text size", "win.text-smaller"),
-            ("zoom-in-symbolic", "Increase text size", "win.text-larger"),
+            ("rx-font-size-less-symbolic", "Decrease text size (Ctrl + −)", "win.text-smaller"),
+            ("rx-font-size-more-symbolic", "Increase text size (Ctrl + +)", "win.text-larger"),
         ] {
             let zoom = button(icon, label, true);
             zoom.set_action_name(Some(action));
@@ -1115,11 +1115,54 @@ impl NoteWindow {
             id.remove();
         }
         let Some(app) = self.app() else { return };
-        if app.hypr().is_none() && self.window.width() > 0 {
+        if app.hypr().is_none()
+            && self.window.width() > 0
+            && !self.window.is_maximized()
+            && !self.window.is_fullscreen()
+        {
             let mut n = self.note.borrow_mut();
             (n.width, n.height) = (self.window.width(), self.window.height());
         }
         app.save_note(&self.note);
+    }
+
+    pub(crate) fn request_normal_startup_size(&self, width: i32, height: i32) {
+        self.window.unmaximize();
+        self.window.unfullscreen();
+
+        // The compositor can still maximize an initially normal window as
+        // part of placement (KWin's Maximizing policy does this). Read back
+        // the first frame's state and request normal placement once.
+        self.window.add_tick_callback(move |window, _| {
+            let window = window.downgrade();
+            glib::idle_add_local_once(move || {
+                let Some(window) = window.upgrade().filter(|window| window.is_mapped()) else { return };
+                let maximized = window.is_maximized();
+                let fullscreen = window.is_fullscreen();
+                if !maximized && !fullscreen {
+                    return;
+                }
+
+                window.set_default_size(width, height);
+                if fullscreen {
+                    window.unfullscreen();
+                }
+                if maximized {
+                    window.unmaximize();
+                }
+
+                let window = window.downgrade();
+                glib::timeout_add_local_once(Duration::from_millis(500), move || {
+                    if let Some(window) = window.upgrade()
+                        && window.is_mapped()
+                        && (window.is_maximized() || window.is_fullscreen())
+                    {
+                        eprintln!("realer-xpad: window manager kept the new note maximized or fullscreen");
+                    }
+                });
+            });
+            glib::ControlFlow::Break
+        });
     }
 
     pub fn show_note(&self) {
