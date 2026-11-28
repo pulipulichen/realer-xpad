@@ -1136,7 +1136,8 @@ fn main() {
         std::env::set_var("REALER_XPAD_NO_HYPR", "1");
         std::env::set_var("REALER_XPAD_DATA", data.path());
     }
-    let app = App::new(None, false, None);
+    // Match the floating-window rule in tools/headless.sh on every GTK version.
+    let app = App::new(None, false, Some(realer_xpad::APP_ID));
     app.register(); // runs startup on this thread
 
     let tests: &[UiTest] = &[

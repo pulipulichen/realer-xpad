@@ -5,6 +5,7 @@
 - Replace the note toolbar's zoom glyphs with bundled symbolic A+ and A− icons and show the keyboard shortcuts in the tooltips ([#8](https://github.com/pulipulichen/realer-xpad/issues/8)). Breeze's equivalent icons use arrows.
 - On a Kubuntu 24.04 VM, KWin 5.27's Maximizing placement policy reproduced [#9](https://github.com/pulipulichen/realer-xpad/issues/9) with the previous AppImage: the initial Wayland window was 1280 × 900 on a 1280 × 900 output. Only for new notes outside Hyprland, request an ordinary initial window and try restoring it once if the compositor maximizes it or makes it fullscreen. Window rules can still enforce their own state or dimensions.
 - Check the mapped note's content allocation and window state for the 300 × 300 default and a custom 420 × 260 size.
+- [CI run 46106807006](https://github.com/pulipulichen/realer-xpad/actions/runs/46106807006) at `8cfb733`: Debian passed. Fedora's headless Wayland UI test allocated 800 × 1000 to the second note instead of 420 × 260, consistent with sway tiling half the 1600 × 1000 test output. The integration test now registers the same application ID as the AppImage so sway's floating rule matches.
 
 ## 2026-11-25
 
